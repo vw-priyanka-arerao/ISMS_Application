@@ -21,7 +21,6 @@ import {
   Zoom
 } from '@mui/material';
 import AskAiLabel from '../components/AskAiLabel';
-import AiDocumentDraftDialog from '../components/AiDocumentDraftDialog';
 import DocumentDetailDrawer from '../components/DocumentDetailDrawer';
 import MetricCard from '../components/MetricCard';
 import StatusChip from '../components/StatusChip';
@@ -85,7 +84,6 @@ export default function DashboardPage({ api, user, showMessage }) {
   const [chatbot, setChatbot] = useState({ answer: '', matches: [], totalMatches: 0 });
   const [chatbotOpen, setChatbotOpen] = useState(false);
   const [chatbotLoading, setChatbotLoading] = useState(false);
-  const [aiDraftOpen, setAiDraftOpen] = useState(false);
   const [selectedDocumentId, setSelectedDocumentId] = useState(null);
   const [error, setError] = useState('');
   const chatInputRef = useRef(null);
@@ -235,13 +233,6 @@ export default function DashboardPage({ api, user, showMessage }) {
             api={api}
             onClose={() => setSelectedDocumentId(null)}
             onChanged={loadDashboard}
-            showMessage={showMessage}
-          />
-          <AiDocumentDraftDialog
-            open={aiDraftOpen}
-            api={api}
-            onClose={() => setAiDraftOpen(false)}
-            onCreated={(document) => { setSelectedDocumentId(document.id); loadDashboard(); showMessage('AI document draft created', 'success'); }}
             showMessage={showMessage}
           />
 
@@ -582,9 +573,6 @@ export default function DashboardPage({ api, user, showMessage }) {
                         {chatbotLoading ? 'Thinking...' : 'Ask AI'}
                       </Button>
                     </Stack>
-                    <Button variant="text" size="small" onClick={() => setAiDraftOpen(true)} sx={{ mt: 1.25 }}>
-                      Create document with AI
-                    </Button>
                   </Box>
                 </CardContent>
               </Card>

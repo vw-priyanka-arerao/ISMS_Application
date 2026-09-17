@@ -13,7 +13,6 @@ SecureSync AI is a runnable full-stack MVP for centralized ISMS document managem
 - Admin archive/restore for soft-deleted documents
 - Review-cycle and next-review metadata for expiry tracking
 - Floating `Ask AI` assistant launcher for role-aware document search
-- AI-generated document drafts routed through the normal review workflow
 - PDF previews with a recorded digital approval signature
 - Label-specific review controls for `Internal`, `Confidential`, and `Secret` documents
 - Swagger UI, PostgreSQL as the default database, and Docker Compose
@@ -343,7 +342,6 @@ curl -u admin1@securesync.local:Password1! -H 'Content-Type: application/json' \
 | `GET` | `/api/documents` | List documents, optionally including deleted items |
 | `GET` | `/api/documents/{id}` | Load a single document with its detail view data |
 | `POST` | `/api/documents` | Create a document from JSON content |
-| `POST` | `/api/documents/ai-drafts` | Create an AI-generated document draft |
 | `POST` | `/api/documents/upload` | Create a document from multipart text-file upload |
 | `POST` | `/api/documents/{id}/submit` | Submit a draft into review workflow |
 | `POST` | `/api/documents/{id}/start-review` | Start the reviewer workflow stage |

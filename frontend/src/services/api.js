@@ -105,7 +105,6 @@ export function createApiClient(getCredentials, onUnauthorized) {
     deleteDocument: (id) => archiveDocument(id),
     restoreDocument: (id) => request(`/api/documents/${id}/restore`, { method: 'POST' }),
     createDocument: (payload) => request('/api/documents', { method: 'POST', body: payload }),
-    createAiDraft: (payload) => request('/api/documents/ai-drafts', { method: 'POST', body: payload }),
     previewDocumentPdf: (id) => requestPdf(`/api/documents/${id}/pdf-preview`),
     uploadDocument: (payload) => {
       const formData = new FormData();

@@ -10,7 +10,6 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import vwg.cms.c4c.dto.AiAnalysisResponse;
-import vwg.cms.c4c.dto.AiDocumentDraftRequest;
 import vwg.cms.c4c.dto.ApprovalResponse;
 import vwg.cms.c4c.dto.CreateDocumentRequest;
 import vwg.cms.c4c.dto.CreateVersionRequest;
@@ -97,15 +96,6 @@ public class DocumentService {
         notifyReviewerTarget(reviewerUsername, savedDocument.getTitle(), savedDocument.getId(),
             "Document '" + savedDocument.getTitle() + "' is assigned to you for review.");
         return getDocument(savedDocument.getId(), actorUsername);
-    }
-
-    @Transactional
-    public DocumentResponse createAiDraft(AiDocumentDraftRequest request, String actorUsername) {
-        String content = aiAssistService.generateDraft(request.title(), request.category(), request.prompt());
-        return createDocument(new CreateDocumentRequest(
-                request.title(), request.category(), null, request.reviewerUsername(), content,
-                "AI-generated initial draft", null, null
-        ), actorUsername);
     }
 
     @Transactional

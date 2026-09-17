@@ -2,35 +2,33 @@ package vwg.cms.c4c.service;
 
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import vwg.cms.c4c.config.LlmProperties;
 import vwg.cms.c4c.dto.AiAnalysisResponse;
 import vwg.cms.c4c.entity.Document;
 
 @Service
+@RequiredArgsConstructor
 public class AiAssistService {
 
-    public String generateDraft(String title, String category, String prompt) {
-        String instructions = prompt == null || prompt.isBlank()
-                ? "Define the document requirements and responsibilities."
-                : prompt.trim();
-        return "# " + title + "\n\n"
-                + "## Purpose\n" + instructions + "\n\n"
-                + "## Scope\nThis " + category + " applies to the defined ISMS scope and relevant stakeholders.\n\n"
-                + "## Ownership and control\nThe document owner maintains this document. Changes require review, approval, version control, and recorded evidence.\n\n"
-                + "## Review\nReview this document on the scheduled cycle or when a material change occurs.";
-    }
+    private static final String RECOMMENDATIONS_MARKER = "recommendations:";
+
+    private final LlmChatService llmChatService;
+    private final LlmProperties llmProperties;
 
     public AiAnalysisResponse analyze(Long documentId, String title, String category, String content) {
         String normalizedContent = content == null ? "" : content;
         String normalizedLower = normalizedContent.toLowerCase(Locale.ROOT);
-        String summary = summarize(normalizedContent);
         List<String> expectedKeywords = expectedKeywords(category);
         List<String> detectedKeywords = expectedKeywords.stream()
                 .filter(keyword -> normalizedLower.contains(keyword.toLowerCase(Locale.ROOT)))
@@ -42,20 +40,62 @@ public class AiAssistService {
         double validationScore = Math.max(45.0, Math.min(100.0, 60.0 + (coverageRatio * 40.0)));
         Map<String, Double> complianceCoverage = buildComplianceCoverage(normalizedLower);
         double confidence = calculateConfidence(normalizedContent, detectedKeywords.size(), expectedKeywords.size());
-        List<String> recommendations = buildRecommendations(missingKeywords, complianceCoverage, normalizedContent);
+
+        Optional<String> llmOutput = llmChatService.complete(
+                "You are an ISMS compliance analyst. Review the document and respond with a short summary "
+                        + "paragraph, then a line 'Recommendations:' followed by a bullet list of specific, actionable "
+                        + "recommendations.",
+                "Title: " + title + "\nCategory: " + category + "\nContent:\n" + normalizedContent
+        );
+
+        String summary;
+        List<String> recommendations;
+        String model;
+        if (llmOutput.isPresent()) {
+            String[] sections = splitSummaryAndRecommendations(llmOutput.get());
+            summary = sections[0];
+            recommendations = parseRecommendationLines(sections[1]);
+            model = llmProperties.model();
+        } else {
+            summary = summarize(normalizedContent);
+            recommendations = buildRecommendations(missingKeywords, complianceCoverage, normalizedContent);
+            model = "heuristic-v2";
+        }
+
         return new AiAnalysisResponse(
                 documentId,
                 title,
                 summary,
                 validationScore,
                 confidence,
-                "heuristic-v2",
+                model,
                 Instant.now(),
                 detectedKeywords,
                 missingKeywords,
                 complianceCoverage,
                 recommendations
         );
+    }
+
+    private String[] splitSummaryAndRecommendations(String llmOutput) {
+        int markerIndex = llmOutput.toLowerCase(Locale.ROOT).indexOf(RECOMMENDATIONS_MARKER);
+        if (markerIndex < 0) {
+            return new String[]{llmOutput.trim(), ""};
+        }
+        return new String[]{
+                llmOutput.substring(0, markerIndex).trim(),
+                llmOutput.substring(markerIndex + RECOMMENDATIONS_MARKER.length()).trim()
+        };
+    }
+
+    private List<String> parseRecommendationLines(String block) {
+        if (block.isBlank()) {
+            return List.of("No specific recommendations returned by the model.");
+        }
+        return Arrays.stream(block.split("\\r?\\n"))
+                .map(line -> line.replaceFirst("^[-*\\d.\\s]+", "").trim())
+                .filter(line -> !line.isBlank())
+                .toList();
     }
 
     public AiAnalysisResponse analyze(Document document, String content) {

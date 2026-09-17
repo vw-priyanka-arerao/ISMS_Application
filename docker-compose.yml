@@ -25,6 +25,13 @@ services:
       DB_URL: jdbc:postgresql://postgres:5432/securesync
       DB_USERNAME: securesync
       DB_PASSWORD: securesync
+      LLM_ENABLED: ${LLM_ENABLED:-false}
+      LLM_VIRTUAL_KEY: ${LLM_VIRTUAL_KEY:-}
+      LLM_CLIENT_ID: ${LLM_CLIENT_ID:-}
+      LLM_CLIENT_SECRET: ${LLM_CLIENT_SECRET:-}
+      LLM_MODEL: ${LLM_MODEL:-gpt-5-mini}
+      LLM_BASE_URL: ${LLM_BASE_URL:-https://llmapi.ai.vwgroup.com}
+      LLM_TOKEN_URL: ${LLM_TOKEN_URL:-https://idp.cloud.vwgroup.com/auth/realms/kums-mfa/protocol/openid-connect/token}
     depends_on:
       postgres:
         condition: service_healthy

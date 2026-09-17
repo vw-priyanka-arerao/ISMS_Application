@@ -26,7 +26,6 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 import vwg.cms.c4c.dto.AiAnalysisResponse;
-import vwg.cms.c4c.dto.AiDocumentDraftRequest;
 import vwg.cms.c4c.dto.CreateDocumentRequest;
 import vwg.cms.c4c.dto.CreateVersionRequest;
 import vwg.cms.c4c.dto.DocumentResponse;
@@ -54,11 +53,6 @@ public class DocumentController {
     @PostMapping
     public DocumentResponse createDocument(@Valid @RequestBody CreateDocumentRequest request, Authentication authentication) {
         return documentService.createDocument(request, appUserService.resolveActorUsername(authentication));
-    }
-
-    @PostMapping("/ai-drafts")
-    public DocumentResponse createAiDraft(@Valid @RequestBody AiDocumentDraftRequest request, Authentication authentication) {
-        return documentService.createAiDraft(request, appUserService.resolveActorUsername(authentication));
     }
 
     @PostMapping(value = "/upload", consumes = "multipart/form-data")

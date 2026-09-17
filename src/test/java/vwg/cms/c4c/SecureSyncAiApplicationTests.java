@@ -223,39 +223,6 @@ class SecureSyncAiApplicationTests {
     }
 
     @Test
-    void aiDraftUsesTheNormalDocumentWorkflowAndApprovalRequiresSignature() throws Exception {
-        MvcResult createResult = mockMvc.perform(post("/api/documents/ai-drafts")
-                        .with(httpBasic("employee1", "Password1!"))
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {
-                                  "title": "AI Access Procedure",
-                                  "category": "Procedure",
-                                  "reviewerUsername": "sdm1",
-                                  "prompt": "Describe privileged access approval controls."
-                                }
-                                """))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.status").value("DRAFT"))
-                .andExpect(jsonPath("$.assignedReviewer").value("sdm1"))
-                .andExpect(jsonPath("$.versions[0].content").value(org.hamcrest.Matchers.containsString("privileged access")))
-                .andReturn();
-        long documentId = objectMapper.readTree(createResult.getResponse().getContentAsString()).get("id").asLong();
-
-        mockMvc.perform(post("/api/documents/{id}/submit", documentId)
-                        .with(httpBasic("employee1", "Password1!"))
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"reviewerUsername\":\"sdm1\"}"))
-                .andExpect(status().isOk());
-
-        mockMvc.perform(post("/api/documents/{id}/review", documentId)
-                        .with(httpBasic("sdm1", "Password1!"))
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"approved\":true}"))
-                .andExpect(status().isBadRequest());
-    }
-
-    @Test
     void shouldListReviewerUsersAndUploadTextDocument() throws Exception {
         MvcResult usersResult = mockMvc.perform(get("/api/users").param("reviewersOnly", "true")
                         .with(httpBasic("employee1", "Password1!")))
