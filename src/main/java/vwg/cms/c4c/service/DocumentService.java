@@ -10,6 +10,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import vwg.cms.c4c.dto.AiAnalysisResponse;
+import vwg.cms.c4c.dto.AiDocumentDraftRequest;
 import vwg.cms.c4c.dto.ApprovalResponse;
 import vwg.cms.c4c.dto.CreateDocumentRequest;
 import vwg.cms.c4c.dto.CreateVersionRequest;
@@ -62,6 +63,7 @@ public class DocumentService {
             throw new ForbiddenOperationException("Only admins can create documents for other owners");
         }
         String reviewerUsername = resolveReviewerTarget(request.reviewerUsername());
+        ensureSecretReviewer(request.category(), reviewerUsername);
         AiAnalysisResponse analysis = aiAssistService.analyze(null, request.title(), request.category(), request.content());
         int reviewCycleDays = normalizeReviewCycleDays(request.reviewCycleDays());
         Document document = Document.builder()
@@ -97,6 +99,31 @@ public class DocumentService {
         return getDocument(savedDocument.getId(), actorUsername);
     }
 
+    @Transactional
+    public DocumentResponse createAiDraft(AiDocumentDraftRequest request, String actorUsername) {
+        String content = aiAssistService.generateDraft(request.title(), request.category(), request.prompt());
+        return createDocument(new CreateDocumentRequest(
+                request.title(), request.category(), null, request.reviewerUsername(), content,
+                "AI-generated initial draft", null, null
+        ), actorUsername);
+    }
+
+    @Transactional
+    public DocumentResponse createUploadedDocument(
+            CreateDocumentRequest request,
+            String actorUsername,
+            byte[] sourceFile,
+            String sourceFilename,
+            String sourceContentType
+    ) {
+        DocumentResponse created = createDocument(request, actorUsername);
+        DocumentVersion version = documentVersionRepository.findByDocumentIdOrderByVersionNumberDesc(created.id()).getFirst();
+        version.setSourceFile(sourceFile);
+        version.setSourceFilename(sourceFilename);
+        version.setSourceContentType(sourceContentType);
+        return getDocument(created.id(), actorUsername);
+    }
+
     @Transactional(readOnly = true)
     public List<DocumentResponse> listDocuments(String actorUsername) {
         return listDocuments(actorUsername, false);
@@ -115,6 +142,7 @@ public class DocumentService {
                     ? documentRepository.findAllByOwnerUsernameOrderByUpdatedAtDesc(actorUsername)
                     : documentRepository.findAllByOwnerUsernameAndDeletedFalseOrderByUpdatedAtDesc(actorUsername));
         return documents.stream()
+            .filter(document -> canAccessSecretDocument(document, actorUsername))
                 .map(documentMapper::toSummary)
                 .toList();
     }
@@ -148,6 +176,7 @@ public class DocumentService {
                     ? document.getAssignedReviewer()
                     : appUserService.findDefaultReviewerUsername();
         }
+        ensureSecretReviewer(document.getCategory(), reviewerUsername);
         document.setAssignedReviewer(reviewerUsername);
         document.setStatus(DocumentStatus.SUBMITTED);
         createApproval(document, ApprovalAction.SUBMITTED, actorUsername, request.remarks());
@@ -171,16 +200,17 @@ public class DocumentService {
         if (actorUsername.equals(findCreatorUsername(id))) {
             throw new ForbiddenOperationException("The document creator cannot start review on their own document");
         }
-        String reviewerUsername = appUserService.resolveReviewerUsername(request.reviewerUsername());
-        if (reviewerUsername == null) {
-            reviewerUsername = actorUsername;
+        if (!canActOnReview(document, actor)) {
+            throw new ForbiddenOperationException("Only the assigned reviewer can start this review");
         }
-        appUserService.ensureUserExists(reviewerUsername);
-        document.setAssignedReviewer(reviewerUsername);
+        String reviewerUsername = appUserService.resolveReviewerUsername(request.reviewerUsername());
+        if (reviewerUsername != null && !reviewerUsername.equals(document.getAssignedReviewer())) {
+            throw new ForbiddenOperationException("The assigned reviewer cannot be changed when starting review");
+        }
         document.setStatus(DocumentStatus.UNDER_REVIEW);
         createApproval(document, ApprovalAction.REVIEW_STARTED, actorUsername, request.remarks());
         auditService.log("DOCUMENT", document.getId(), "REVIEW_STARTED", actorUsername,
-                "Review started by " + reviewerUsername);
+                "Review started by " + actorUsername);
         notificationService.notifyUser(document.getOwnerUsername(), NotificationType.SYSTEM,
                 "Document '" + document.getTitle() + "' moved to UNDER_REVIEW.", document.getId(), null);
         return getDocument(id, actorUsername);
@@ -198,8 +228,11 @@ public class DocumentService {
         if (actorUsername.equals(creatorUsername)) {
             throw new ForbiddenOperationException("The document creator cannot approve or reject their own document");
         }
-        if (!canActOnReview(document.getAssignedReviewer(), actor)) {
+        if (!canActOnReview(document, actor)) {
             throw new ForbiddenOperationException("Your role does not have sufficient authority for the assigned reviewer");
+        }
+        if (Boolean.TRUE.equals(request.approved()) && (request.signature() == null || request.signature().isBlank())) {
+            throw new BadRequestException("A digital signature is required before approving a document");
         }
         document.setStatus(Boolean.TRUE.equals(request.approved()) ? DocumentStatus.APPROVED : DocumentStatus.REJECTED);
         document.setAssignedReviewer(actorUsername);
@@ -207,7 +240,7 @@ public class DocumentService {
             document.setNextReviewAt(Instant.now().plusSeconds(document.getReviewCycleDays().longValue() * 24L * 3600L));
         }
         ApprovalAction action = Boolean.TRUE.equals(request.approved()) ? ApprovalAction.APPROVED : ApprovalAction.REJECTED;
-        createApproval(document, action, actorUsername, request.remarks());
+        createApproval(document, action, actorUsername, request.remarks(), request.signature());
         auditService.log("DOCUMENT", document.getId(), action.name(), actorUsername,
                 "Document marked as " + document.getStatus());
         notificationService.notifyUser(document.getOwnerUsername(), NotificationType.APPROVAL_RESULT,
@@ -246,6 +279,18 @@ public class DocumentService {
             return;
         }
         notificationService.notifyUser(target, NotificationType.REVIEW_REQUEST, message, documentId, reviewDueAt());
+    }
+
+    private void ensureSecretReviewer(String classification, String reviewerUsername) {
+        if (!"Secret".equalsIgnoreCase(classification)) {
+            return;
+        }
+        if (reviewerUsername == null || reviewerUsername.isBlank()) {
+            throw new BadRequestException("A Secret document requires one assigned reviewer");
+        }
+        if (distributionListService.findByEmail(reviewerUsername) != null) {
+            throw new BadRequestException("A Secret document cannot be assigned to a distribution list");
+        }
     }
 
     @Transactional
@@ -345,10 +390,21 @@ public class DocumentService {
         if (document.isDeleted() && includeDeleted && !appUserService.isAdmin(actor)) {
             throw new ForbiddenOperationException("Only admin users can access deleted documents");
         }
+        if (!canAccessSecretDocument(document, actorUsername)) {
+            throw new ResourceNotFoundException("Document not found: " + id);
+        }
         if (!appUserService.canViewAllDocuments(actor) && !document.getOwnerUsername().equals(actorUsername)) {
             throw new ForbiddenOperationException("You are not allowed to access this document");
         }
         return document;
+    }
+
+    private boolean canAccessSecretDocument(Document document, String actorUsername) {
+        if (!"Secret".equalsIgnoreCase(document.getCategory())) {
+            return true;
+        }
+        return document.getOwnerUsername().equals(actorUsername)
+                || actorUsername.equals(document.getAssignedReviewer());
     }
 
     private Document getRequiredDocument(Long id) {
@@ -376,7 +432,8 @@ public class DocumentService {
         }
     }
 
-    private boolean canActOnReview(String assignedReviewer, AppUser actor) {
+    private boolean canActOnReview(Document document, AppUser actor) {
+        String assignedReviewer = document.getAssignedReviewer();
         if (assignedReviewer == null || assignedReviewer.isBlank()) {
             return true;
         }
@@ -386,6 +443,9 @@ public class DocumentService {
                     .map(appUserService::findUserByEmail)
                     .flatMap(Optional::stream)
                     .anyMatch(member -> member.getUsername().equals(actor.getUsername()));
+        }
+        if ("Secret".equalsIgnoreCase(document.getCategory())) {
+            return assignedReviewer.equals(actor.getUsername());
         }
         AppUser assignedUser = appUserService.getRequiredUser(assignedReviewer);
         return roleRank(actor.getRole()) >= roleRank(assignedUser.getRole());
@@ -427,11 +487,16 @@ public class DocumentService {
     }
 
     private void createApproval(Document document, ApprovalAction action, String actorUsername, String remarks) {
+        createApproval(document, action, actorUsername, remarks, null);
+    }
+
+    private void createApproval(Document document, ApprovalAction action, String actorUsername, String remarks, String signature) {
         approvalRepository.save(Approval.builder()
                 .document(document)
                 .action(action)
                 .actorUsername(actorUsername)
                 .remarks(remarks)
+                .signature(signature)
                 .build());
     }
 }

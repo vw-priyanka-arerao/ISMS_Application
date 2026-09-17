@@ -5,7 +5,8 @@ import jakarta.validation.constraints.Size;
 
 public record ReviewDecisionRequest(
         @NotNull Boolean approved,
-        @Size(max = 1000) String remarks
+        @Size(max = 1000) String remarks,
+        @Size(max = 120) String signature
 ) {
 }
 

@@ -5,7 +5,6 @@ import java.util.Comparator;
 import java.util.Locale;
 import java.util.Collection;
 import java.util.Optional;
-import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
@@ -33,7 +32,9 @@ public class AppUserService implements UserDetailsService {
 
     @Override
     public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
-        AppUser user = getRequiredUser(username);
+        AppUser user = username.contains("@")
+            ? findUserByEmail(username).orElseThrow(() -> new UsernameNotFoundException("User not found: " + username))
+            : getRequiredUser(username);
         return new User(
                 user.getUsername(),
                 user.getPassword(),

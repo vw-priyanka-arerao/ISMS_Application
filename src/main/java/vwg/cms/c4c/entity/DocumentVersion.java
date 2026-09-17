@@ -7,6 +7,7 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
+import jakarta.persistence.Lob;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
@@ -48,6 +49,16 @@ public class DocumentVersion {
 
     @Column(nullable = false, length = 128)
     private String checksum;
+
+    @Lob
+    @Column(columnDefinition = "BYTEA")
+    private byte[] sourceFile;
+
+    @Column(length = 255)
+    private String sourceFilename;
+
+    @Column(length = 120)
+    private String sourceContentType;
 
     @Column(nullable = false, updatable = false)
     private Instant createdAt;

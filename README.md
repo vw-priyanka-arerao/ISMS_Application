@@ -6,24 +6,26 @@ SecureSync AI is a runnable full-stack MVP for centralized ISMS document managem
 
 - Spring Boot backend with Java 21
 - React + Material UI frontend in `frontend/`
-- Role-based access with demo Basic Auth users
-- Optional Azure AD-compatible OAuth2 JWT support
+- Email and password login for seeded application users
 - ISMS workflow: `DRAFT -> SUBMITTED -> UNDER_REVIEW -> APPROVED/REJECTED`
 - Version history, checksum tracking, and audit logs
 - Notification inbox with overdue review reminder sweeps
 - Admin archive/restore for soft-deleted documents
 - Review-cycle and next-review metadata for expiry tracking
 - Floating `Ask AI` assistant launcher for role-aware document search
+- AI-generated document drafts routed through the normal review workflow
+- PDF previews with a recorded digital approval signature
+- Label-specific review controls for `Internal`, `Confidential`, and `Secret` documents
 - Swagger UI, PostgreSQL as the default database, and Docker Compose
 
 ## Feature matrix
 
 | Area | Included in MVP | Notes |
 | --- | --- | --- |
-| Authentication | Yes | HTTP Basic for demo users, optional OAuth2 JWT bearer mode |
-| Role-based access | Yes | `EMPLOYEE`, `SDM`, `PD_HEAD`, `ADMIN`, `AUDITOR` |
-| Document creation | Yes | JSON entry and text-file upload |
-| Workflow approvals | Yes | Submit, start review, approve, reject |
+| Authentication | Yes | Email and password login for registered users |
+| Role-based access | Yes | `EMPLOYEE`, `SDM`, `PD_HEAD`, `SUB_ADMIN`, `ADMIN`, `AUDITOR` |
+| Document creation | Yes | Manual content, supported file upload, and AI draft generation |
+| Workflow approvals | Yes | Submit, start review, digitally sign and approve, or reject |
 | Versioning | Yes | Change summary and checksum tracking |
 | AI analysis | Yes | Heuristic compliance-assist endpoint |
 | AI search assistant | Yes | Floating `Ask AI` launcher on dashboard |
@@ -51,7 +53,7 @@ SecureSync AI is a runnable full-stack MVP for centralized ISMS document managem
               ▼              ▼              ▼
       ┌─────────────┐  ┌─────────────┐  ┌──────────────┐
       │  Services   │  │  Security   │  │  Scheduler   │
-      │ Workflow AI │  │ Basic/OAuth │  │ Reminders    │
+      │ Workflow AI │  │ Email login │  │ Reminders    │
       └──────┬──────┘  └──────┬──────┘  └──────┬───────┘
              │                │                │
              └──────────┬─────┴────────────────┘
@@ -88,15 +90,12 @@ SecureSync AI is a runnable full-stack MVP for centralized ISMS document managem
 
 ### Authentication and access control
 
-- HTTP Basic login for seeded demo users
-- Bearer token mode for Azure AD-style JWT access tokens
-- Frontend login toggle between:
-  - `Basic (Demo)`
-  - `Bearer Token`
+- Email and password login for registered users
 - Role-aware document access for:
   - `EMPLOYEE`
   - `SDM`
   - `PD_HEAD`
+  - `SUB_ADMIN`
   - `ADMIN`
   - `AUDITOR`
 
@@ -110,7 +109,7 @@ SecureSync AI is a runnable full-stack MVP for centralized ISMS document managem
   - approved documents
   - unread alerts
   - overdue reminders
-- Documents-by-category breakdown
+- Documents-by-label breakdown
 - Recent documents feed
 - Recent approval activity feed
 - Floating bottom-right `Ask AI` launcher with modern assistant-style UI
@@ -132,31 +131,35 @@ SecureSync AI is a runnable full-stack MVP for centralized ISMS document managem
   - next review date
   - snippet preview
 - Clicking a result opens the related document details
+- Create an AI draft with a title, label, reviewer, and drafting instructions
 
 ### Document management
 
-- Create documents using JSON content entry
-- Create documents from uploaded text files
+- Create documents using manual content, supported-file upload, or AI draft generation
+- Document labels: `Internal`, `Confidential`, and `Secret`
 - Supported upload types include:
-  - `.txt`
-  - `.md`
-  - `.csv`
-  - `.json`
-  - `.xml`
-  - `.yaml`
-  - `.yml`
-  - `.log`
+  - `.pdf`
+  - `.docx`
+  - `.xls`
+  - `.xlsx`
 - Optional owner assignment for admins
-- Reviewer selection from the user directory
+- Reviewer email autocomplete from the user directory and distribution lists
 - Review cycle in days
 - Optional next review date
 - Document detail drawer for workflow actions and inspection
+- Inline-only PDF preview opened in a new browser tab; document download is not available
 
 ### Workflow and compliance tracking
 
 - Submission flow from author to reviewer
-- Review start action for approvers
-- Approve or reject with remarks
+- For `Internal` and `Confidential` documents, a reviewer and any higher reviewer role can act:
+  - `SDM` -> SDM, PD Head, Sub Admin, or Admin
+  - `PD Head` -> PD Head, Sub Admin, or Admin
+  - `Sub Admin` -> Sub Admin or Admin
+  - `Admin` -> Admin only
+- For `Secret` documents, only the owner and the explicitly assigned individual reviewer can view the document; only that reviewer can review or approve it
+- Approvals require a typed digital signature, which is recorded in the approval history and PDF preview
+- Reject with remarks
 - Version creation with change summaries
 - Heuristic AI analysis endpoint with:
   - confidence
@@ -184,13 +187,14 @@ All demo users use the same password:
 
 - Password: `Password1!`
 
-Users:
-
-- `employee1` – Employee
-- `sdm1` – SDM
-- `pdhead1` – PD Head
-- `admin1` – Admin
-- `auditor1` – Auditor
+| Role | Login email |
+| --- | --- |
+| Employee | `employee1@securesync.local` |
+| SDM | `sdm1@securesync.local` |
+| PD Head | `pdhead1@securesync.local` |
+| Sub Admin | `subadmin1@securesync.local` |
+| Admin | `admin1@securesync.local` |
+| Auditor | `auditor1@securesync.local` |
 
 ## Tech stack
 
@@ -200,7 +204,6 @@ Users:
 - Spring Web
 - Spring Data JPA
 - Spring Security
-- Spring OAuth2 Resource Server
 - Spring Validation
 - Spring Actuator
 - Flyway
@@ -219,7 +222,6 @@ Users:
 - Backend application: repository root
 - Frontend application: `frontend/`
 - Flyway migrations: `src/main/resources/db/migration/`
-- OAuth2 profile config: `src/main/resources/application-oauth2.yml`
 - Main application config: `src/main/resources/application.yml`
 
 ## Prerequisites
@@ -243,42 +245,22 @@ This creates database `securesync`, user `securesync`, password `securesync`, an
 
 ### 2) Start the backend
 
-```bash
-cd '/Users/u7nj73b/IdeaProjects/SecureSync AI'
+```powershell
 mvn spring-boot:run
 ```
 
 The backend defaults to `jdbc:postgresql://localhost:5432/securesync`. Override the connection with:
 
-```bash
-export DB_URL='jdbc:postgresql://localhost:5432/securesync'
-export DB_USERNAME='securesync'
-export DB_PASSWORD='securesync'
+```powershell
+$env:DB_URL='jdbc:postgresql://localhost:5432/securesync'
+$env:DB_USERNAME='securesync'
+$env:DB_PASSWORD='securesync'
 ```
 
-On Windows PowerShell, use `$env:DB_URL`, `$env:DB_USERNAME`, and `$env:DB_PASSWORD` instead.
+### 3) Start the frontend
 
-### 3) Start the backend in OAuth2 JWT mode (optional)
-
-```bash
-cd '/Users/u7nj73b/IdeaProjects/SecureSync AI'
-export OAUTH2_ISSUER_URI='https://login.microsoftonline.com/<tenant-id>/v2.0'
-export OAUTH2_PRINCIPAL_CLAIM='preferred_username'
-export OAUTH2_ROLE_ADMIN='ISMS_ADMIN,ADMIN'
-export OAUTH2_ROLE_PD_HEAD='ISMS_PD_HEAD,PD_HEAD'
-export OAUTH2_ROLE_SDM='ISMS_SDM,SDM'
-export OAUTH2_ROLE_AUDITOR='ISMS_AUDITOR,AUDITOR'
-export OAUTH2_ROLE_EMPLOYEE='ISMS_EMPLOYEE,EMPLOYEE'
-mvn spring-boot:run -Dspring-boot.run.profiles=oauth2
-```
-
-In OAuth2 mode, Basic Auth remains available for local/demo use, while JWT bearer tokens are accepted in parallel.
-
-### 4) Start the frontend
-
-```bash
-export PATH="/opt/homebrew/bin:$PATH"
-cd '/Users/u7nj73b/IdeaProjects/SecureSync AI/frontend'
+```powershell
+Set-Location frontend
 npm install
 npm run dev
 ```
@@ -304,41 +286,43 @@ Add your latest UI images here when ready.
 
 ## Typical user flow
 
-1. Sign in using `Basic (Demo)` or `Bearer Token`
+1. Sign in using a registered email and password
 2. Open the `Documents` page and create a new ISMS document
-3. Optionally upload a supported text file instead of manual content entry
-4. Assign a reviewer or allow auto-assignment
-5. Set review cycle / next review date if required
-6. Submit the document for review
-7. Reviewer starts review and approves or rejects the document
-8. Review history, reminders, and audit evidence in the related pages
-9. Use the floating `Ask AI` launcher on the dashboard to search role-visible documents
+3. Select the document label: `Internal`, `Confidential`, or `Secret`
+4. Optionally upload a supported file or create an AI draft instead of manual content entry
+5. Assign a reviewer or allow auto-assignment; `Secret` requires one individual reviewer
+6. Set review cycle / next review date if required
+7. Submit the document for review
+8. An authorized reviewer starts review, then digitally signs and approves or rejects the document
+9. Open `Preview PDF` to view the rendered document and approval signature in a new tab
+10. Review history, reminders, and audit evidence in the related pages
+11. Use the floating `Ask AI` launcher on the dashboard to search role-visible documents
 
 ## Example API flow
 
 ```bash
-curl -u employee1:Password1! -H 'Content-Type: application/json' \
-  -d '{"title":"Access Control Policy","category":"Policy","reviewerUsername":"sdm1","content":"This document defines scope, owner, review, approval, control and compliance obligations."}' \
+curl -u employee1@securesync.local:Password1! -H 'Content-Type: application/json' \
+  -d '{"title":"Access Control Policy","category":"Internal","reviewerUsername":"sdm1","content":"This document defines scope, owner, review, approval, control and compliance obligations."}' \
   http://localhost:8080/api/documents
 
-curl -u employee1:Password1! -F title='Uploaded Control Standard' -F category='Policy' \
+curl -u employee1@securesync.local:Password1! -F title='Uploaded Control Standard' -F category='Confidential' \
   -F reviewerUsername='pdhead1' -F changeSummary='Uploaded from file' \
-  -F file=@./sample-policy.txt \
+  -F file=@./sample-policy.docx \
   http://localhost:8080/api/documents/upload
 
-curl -u employee1:Password1! -H 'Content-Type: application/json' \
+curl -u employee1@securesync.local:Password1! -H 'Content-Type: application/json' \
   -d '{"reviewerUsername":"sdm1","remarks":"Ready for review"}' \
   http://localhost:8080/api/documents/1/submit
 
-curl -u sdm1:Password1! -H 'Content-Type: application/json' \
+curl -u sdm1@securesync.local:Password1! -H 'Content-Type: application/json' \
   -d '{"remarks":"Starting review"}' \
   http://localhost:8080/api/documents/1/start-review
 
-curl -u sdm1:Password1! -H 'Content-Type: application/json' \
-  -d '{"approved":true,"remarks":"Approved for release"}' \
+curl -u sdm1@securesync.local:Password1! -H 'Content-Type: application/json' \
+  -d '{"approved":true,"remarks":"Approved for release","signature":"SDM One"}' \
   http://localhost:8080/api/documents/1/review
 
-curl -u admin1:Password1! -H 'Content-Type: application/json' \
+curl -u admin1@securesync.local:Password1! -H 'Content-Type: application/json' \
   -d '{"query":"Which ISMS documents expire this month?","maxResults":5}' \
   http://localhost:8080/api/chatbot/query
 ```
@@ -359,10 +343,12 @@ curl -u admin1:Password1! -H 'Content-Type: application/json' \
 | `GET` | `/api/documents` | List documents, optionally including deleted items |
 | `GET` | `/api/documents/{id}` | Load a single document with its detail view data |
 | `POST` | `/api/documents` | Create a document from JSON content |
+| `POST` | `/api/documents/ai-drafts` | Create an AI-generated document draft |
 | `POST` | `/api/documents/upload` | Create a document from multipart text-file upload |
 | `POST` | `/api/documents/{id}/submit` | Submit a draft into review workflow |
 | `POST` | `/api/documents/{id}/start-review` | Start the reviewer workflow stage |
 | `POST` | `/api/documents/{id}/review` | Approve or reject a document |
+| `GET` | `/api/documents/{id}/pdf-preview` | Render an inline PDF preview; no download endpoint is available |
 | `POST` | `/api/documents/{id}/versions` | Create a new document version |
 | `GET` | `/api/documents/{id}/ai-analysis` | Return heuristic compliance analysis |
 | `DELETE` | `/api/documents/{id}` | Soft-delete a document |
@@ -394,23 +380,20 @@ curl -u admin1:Password1! -H 'Content-Type: application/json' \
 
 ### Backend tests
 
-```bash
-cd '/Users/u7nj73b/IdeaProjects/SecureSync AI'
+```powershell
 mvn test
 ```
 
 ### Frontend production build
 
-```bash
-export PATH="/opt/homebrew/bin:$PATH"
-cd '/Users/u7nj73b/IdeaProjects/SecureSync AI/frontend'
+```powershell
+Set-Location frontend
 npm run build
 ```
 
 ## Run with Docker Compose
 
-```bash
-cd '/Users/u7nj73b/IdeaProjects/SecureSync AI'
+```powershell
 docker compose up --build
 ```
 
@@ -430,8 +413,7 @@ PostgreSQL is the default runtime datasource. Provide these variables when conne
 - `DB_USERNAME`
 - `DB_PASSWORD`
 
-```bash
-cd '/Users/u7nj73b/IdeaProjects/SecureSync AI'
+```powershell
 mvn spring-boot:run
 ```
 
@@ -441,21 +423,4 @@ Additional notes:
 - JPA runs in `ddl-auto: validate` mode to catch schema drift
 - The `test` Spring profile uses an in-memory H2 database only for automated tests; it is not used by the normal application or Docker Compose runtime
 - PostgreSQL must be reachable before startup; a missing or incorrect password produces a datasource authentication error
-- JWT integration coverage is available in `src/test/java/vwg/cms/c4c/OAuth2SecurityIntegrationTests.java`
-
-## Latest UI updates
-
-- The dashboard AI experience has been updated from a plain chatbot section to a modern floating `Ask AI` launcher
-- The launcher uses a compact assistant-style entry point with a polished visual treatment
-- Opening the launcher reveals a focused AI panel for role-aware document queries
-- `Ask AI` labels now use consistent robot icon styling with shared UI tokens in `frontend/src/styles/askAiIconStyles.js`
-- Repeated icon + text patterns were refactored into reusable component `frontend/src/components/AskAiLabel.jsx`
-
-## Next recommended steps
-
-1. Move file content storage from DB text fields to Azure Blob Storage.
-2. Add email and Microsoft Teams notification adapters.
-3. Add pagination, filters, and broader search across document views.
-4. Add stricter Azure AD role/group mapping into application roles.
-5. Replace the heuristic AI layer with policy-aware LLM validation and summarization.
 

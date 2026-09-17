@@ -125,7 +125,7 @@ export default function DocumentsPage({ api, user, showMessage }) {
             <TableHead>
               <TableRow>
                 <TableCell>Title</TableCell>
-                <TableCell>Category</TableCell>
+                <TableCell>Label</TableCell>
                 <TableCell>Owner</TableCell>
                 <TableCell>Status</TableCell>
                 <TableCell>Version</TableCell>

@@ -14,6 +14,8 @@ import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.Authentication;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -24,6 +26,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 import vwg.cms.c4c.dto.AiAnalysisResponse;
+import vwg.cms.c4c.dto.AiDocumentDraftRequest;
 import vwg.cms.c4c.dto.CreateDocumentRequest;
 import vwg.cms.c4c.dto.CreateVersionRequest;
 import vwg.cms.c4c.dto.DocumentResponse;
@@ -33,6 +36,7 @@ import vwg.cms.c4c.dto.SubmitDocumentRequest;
 import vwg.cms.c4c.exception.BadRequestException;
 import vwg.cms.c4c.service.AppUserService;
 import vwg.cms.c4c.service.DocumentService;
+import vwg.cms.c4c.service.DocumentPdfService;
 
 @RestController
 @RequestMapping("/api/documents")
@@ -45,10 +49,16 @@ public class DocumentController {
 
     private final DocumentService documentService;
     private final AppUserService appUserService;
+    private final DocumentPdfService documentPdfService;
 
     @PostMapping
     public DocumentResponse createDocument(@Valid @RequestBody CreateDocumentRequest request, Authentication authentication) {
         return documentService.createDocument(request, appUserService.resolveActorUsername(authentication));
+    }
+
+    @PostMapping("/ai-drafts")
+    public DocumentResponse createAiDraft(@Valid @RequestBody AiDocumentDraftRequest request, Authentication authentication) {
+        return documentService.createAiDraft(request, appUserService.resolveActorUsername(authentication));
     }
 
     @PostMapping(value = "/upload", consumes = "multipart/form-data")
@@ -94,7 +104,13 @@ public class DocumentController {
                     reviewCycleDays,
                     nextReviewAt
             );
-            return documentService.createDocument(request, appUserService.resolveActorUsername(authentication));
+                return documentService.createUploadedDocument(
+                    request,
+                    appUserService.resolveActorUsername(authentication),
+                    file.getBytes(),
+                    filename,
+                    file.getContentType()
+                );
         } catch (IOException | TikaException | SAXException exception) {
             throw new BadRequestException("Unable to extract readable content from the uploaded file. Please check the file and try again.");
         }
@@ -165,6 +181,16 @@ public class DocumentController {
             Authentication authentication
     ) {
         return documentService.reviewDocument(id, request, appUserService.resolveActorUsername(authentication));
+    }
+
+    @GetMapping(value = "/{id}/pdf-preview", produces = MediaType.APPLICATION_PDF_VALUE)
+    public ResponseEntity<byte[]> previewPdf(@PathVariable Long id, Authentication authentication) throws IOException {
+        DocumentResponse document = documentService.getDocument(id, appUserService.resolveActorUsername(authentication));
+        byte[] pdf = documentPdfService.render(id, document);
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"document.pdf\"")
+                .contentType(MediaType.APPLICATION_PDF)
+                .body(pdf);
     }
 
     @PostMapping("/{id}/versions")

@@ -78,6 +78,21 @@ export function createApiClient(getCredentials, onUnauthorized) {
     }
   }
 
+  async function requestPdf(path) {
+    const credentials = getCredentials();
+    const headers = new Headers({ Accept: 'application/pdf' });
+    if (credentials?.token) {
+      headers.set('Authorization', toBearerAuth(credentials.token));
+    } else if (credentials?.username && credentials?.password) {
+      headers.set('Authorization', toBasicAuth(credentials.username, credentials.password));
+    }
+    const response = await fetch(buildUrl(path), { headers });
+    if (!response.ok) {
+      throw new Error(`Unable to render PDF (status ${response.status})`);
+    }
+    return response.blob();
+  }
+
   return {
     request,
     me: () => request('/api/auth/me'),
@@ -90,6 +105,8 @@ export function createApiClient(getCredentials, onUnauthorized) {
     deleteDocument: (id) => archiveDocument(id),
     restoreDocument: (id) => request(`/api/documents/${id}/restore`, { method: 'POST' }),
     createDocument: (payload) => request('/api/documents', { method: 'POST', body: payload }),
+    createAiDraft: (payload) => request('/api/documents/ai-drafts', { method: 'POST', body: payload }),
+    previewDocumentPdf: (id) => requestPdf(`/api/documents/${id}/pdf-preview`),
     uploadDocument: (payload) => {
       const formData = new FormData();
       Object.entries(payload).forEach(([key, value]) => {

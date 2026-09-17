@@ -16,6 +16,17 @@ import vwg.cms.c4c.entity.Document;
 @Service
 public class AiAssistService {
 
+    public String generateDraft(String title, String category, String prompt) {
+        String instructions = prompt == null || prompt.isBlank()
+                ? "Define the document requirements and responsibilities."
+                : prompt.trim();
+        return "# " + title + "\n\n"
+                + "## Purpose\n" + instructions + "\n\n"
+                + "## Scope\nThis " + category + " applies to the defined ISMS scope and relevant stakeholders.\n\n"
+                + "## Ownership and control\nThe document owner maintains this document. Changes require review, approval, version control, and recorded evidence.\n\n"
+                + "## Review\nReview this document on the scheduled cycle or when a material change occurs.";
+    }
+
     public AiAnalysisResponse analyze(Long documentId, String title, String category, String content) {
         String normalizedContent = content == null ? "" : content;
         String normalizedLower = normalizedContent.toLowerCase(Locale.ROOT);

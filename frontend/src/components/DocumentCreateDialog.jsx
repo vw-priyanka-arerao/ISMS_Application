@@ -16,12 +16,12 @@ import {
   Typography
 } from '@mui/material';
 
-const categoryOptions = ['Policy', 'Procedure', 'Risk', 'Access', 'Audit', 'Asset'];
+const classificationOptions = ['Internal', 'Confidential', 'Secret'];
 const allowedExtensions = ['.pdf', '.docx', '.xls', '.xlsx'];
 
 const initialState = {
   title: '',
-  category: 'Policy',
+  category: 'Internal',
   reviewerUsername: '',
   content: '',
   changeSummary: '',
@@ -104,11 +104,11 @@ export default function DocumentCreateDialog({ open, onClose, onCreate, user, re
           />
           <TextField
             select
-            label="Category"
+            label="Label"
             value={form.category}
             onChange={(event) => updateField('category', event.target.value)}
           >
-            {categoryOptions.map((option) => (
+            {classificationOptions.map((option) => (
               <MenuItem key={option} value={option}>{option}</MenuItem>
             ))}
           </TextField>
@@ -130,6 +130,8 @@ export default function DocumentCreateDialog({ open, onClose, onCreate, user, re
           <Autocomplete
             freeSolo
             options={matchingReviewerOptions}
+            open={Boolean(form.reviewerUsername.trim() && !selectedReviewer)}
+            openOnFocus={false}
             value={selectedReviewer || form.reviewerUsername}
             onChange={(_, value) => {
               const email = typeof value === 'string' ? value : value?.email || '';

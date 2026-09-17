@@ -8,6 +8,7 @@ public record ApprovalResponse(
         ApprovalAction action,
         String actorUsername,
         String remarks,
+        String signature,
         Instant createdAt
 ) {
 }

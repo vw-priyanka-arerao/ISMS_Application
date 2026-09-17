@@ -41,6 +41,15 @@ class SecureSyncAiApplicationTests {
     @Autowired
     private NotificationRepository notificationRepository;
 
+        @Test
+        void seededUserCanAuthenticateWithEmailAddress() throws Exception {
+                mockMvc.perform(get("/api/auth/me")
+                                                .with(httpBasic("employee1@securesync.local", "Password1!")))
+                                .andExpect(status().isOk())
+                                .andExpect(jsonPath("$.username").value("employee1"))
+                                .andExpect(jsonPath("$.email").value("employee1@securesync.local"));
+        }
+
     @Test
     void shouldExecuteFullDocumentLifecycle() throws Exception {
         String createPayload = """
@@ -81,9 +90,10 @@ class SecureSyncAiApplicationTests {
         mockMvc.perform(post("/api/documents/{id}/review", documentId)
                         .with(httpBasic("sdm1", "Password1!"))
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"approved\":true,\"remarks\":\"Compliant and approved\"}"))
+                        .content("{\"approved\":true,\"remarks\":\"Compliant and approved\",\"signature\":\"SDM One\"}"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.status").value("APPROVED"));
+                .andExpect(jsonPath("$.status").value("APPROVED"))
+                .andExpect(jsonPath("$.approvals[0].signature").value("SDM One"));
 
         mockMvc.perform(post("/api/documents/{id}/versions", documentId)
                         .with(httpBasic("employee1", "Password1!"))
@@ -145,6 +155,104 @@ class SecureSyncAiApplicationTests {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"approved\":true,\"remarks\":\"Trying to approve\"}"))
                 .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void onlyAssignedReviewerCanApproveAnIndividualReview() throws Exception {
+        MvcResult createResult = mockMvc.perform(post("/api/documents")
+                        .with(httpBasic("employee1", "Password1!"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"title\":\"Restricted Review\",\"category\":\"Secret\",\"reviewerUsername\":\"admin1\",\"content\":\"Scope owner review approval control.\"}"))
+                .andExpect(status().isOk())
+                .andReturn();
+        long documentId = objectMapper.readTree(createResult.getResponse().getContentAsString()).get("id").asLong();
+
+        mockMvc.perform(post("/api/documents/{id}/submit", documentId)
+                        .with(httpBasic("employee1", "Password1!"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"reviewerUsername\":\"admin1\"}"))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/api/documents/{id}/review", documentId)
+                        .with(httpBasic("pdhead1", "Password1!"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"approved\":true,\"signature\":\"PD Head One\"}"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void secretDocumentIsNotVisibleToAnUnassignedReviewer() throws Exception {
+        MvcResult createResult = mockMvc.perform(post("/api/documents")
+                        .with(httpBasic("employee1", "Password1!"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"title\":\"Secret Document\",\"category\":\"Secret\",\"reviewerUsername\":\"subadmin1\",\"content\":\"Restricted content.\"}"))
+                .andExpect(status().isOk())
+                .andReturn();
+        long documentId = objectMapper.readTree(createResult.getResponse().getContentAsString()).get("id").asLong();
+
+        mockMvc.perform(get("/api/documents/{id}", documentId)
+                        .with(httpBasic("pdhead1", "Password1!")))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(get("/api/documents")
+                        .with(httpBasic("pdhead1", "Password1!")))
+                .andExpect(jsonPath("$[?(@.id == %s)]".formatted(documentId)).isEmpty());
+    }
+
+    @Test
+    void higherReviewerRoleCanApproveAConfidentialDocument() throws Exception {
+        MvcResult createResult = mockMvc.perform(post("/api/documents")
+                        .with(httpBasic("employee1", "Password1!"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"title\":\"Confidential Review\",\"category\":\"Confidential\",\"reviewerUsername\":\"pdhead1\",\"content\":\"Scope owner review approval control.\"}"))
+                .andExpect(status().isOk())
+                .andReturn();
+        long documentId = objectMapper.readTree(createResult.getResponse().getContentAsString()).get("id").asLong();
+
+        mockMvc.perform(post("/api/documents/{id}/submit", documentId)
+                        .with(httpBasic("employee1", "Password1!"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"reviewerUsername\":\"pdhead1\"}"))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/api/documents/{id}/review", documentId)
+                        .with(httpBasic("admin1", "Password1!"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"approved\":true,\"signature\":\"Admin One\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("APPROVED"));
+    }
+
+    @Test
+    void aiDraftUsesTheNormalDocumentWorkflowAndApprovalRequiresSignature() throws Exception {
+        MvcResult createResult = mockMvc.perform(post("/api/documents/ai-drafts")
+                        .with(httpBasic("employee1", "Password1!"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "title": "AI Access Procedure",
+                                  "category": "Procedure",
+                                  "reviewerUsername": "sdm1",
+                                  "prompt": "Describe privileged access approval controls."
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("DRAFT"))
+                .andExpect(jsonPath("$.assignedReviewer").value("sdm1"))
+                .andExpect(jsonPath("$.versions[0].content").value(org.hamcrest.Matchers.containsString("privileged access")))
+                .andReturn();
+        long documentId = objectMapper.readTree(createResult.getResponse().getContentAsString()).get("id").asLong();
+
+        mockMvc.perform(post("/api/documents/{id}/submit", documentId)
+                        .with(httpBasic("employee1", "Password1!"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"reviewerUsername\":\"sdm1\"}"))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/api/documents/{id}/review", documentId)
+                        .with(httpBasic("sdm1", "Password1!"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"approved\":true}"))
+                .andExpect(status().isBadRequest());
     }
 
     @Test

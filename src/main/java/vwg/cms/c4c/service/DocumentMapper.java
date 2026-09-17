@@ -86,6 +86,7 @@ public class DocumentMapper {
                 approval.getAction(),
                 approval.getActorUsername(),
                 approval.getRemarks(),
+                approval.getSignature(),
                 approval.getCreatedAt()
         );
     }

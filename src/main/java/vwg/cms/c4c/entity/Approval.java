@@ -47,6 +47,9 @@ public class Approval {
     @Column(length = 1000)
     private String remarks;
 
+    @Column(length = 120)
+    private String signature;
+
     @Column(nullable = false, updatable = false)
     private Instant createdAt;
 

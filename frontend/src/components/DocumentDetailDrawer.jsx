@@ -42,6 +42,7 @@ export default function DocumentDetailDrawer({ open, documentId, user, api, onCl
   const [submitForm, setSubmitForm] = useState({ remarks: '' });
   const [reviewForm, setReviewForm] = useState({ remarks: '' });
   const [decisionRemarks, setDecisionRemarks] = useState('');
+  const [approvalSignature, setApprovalSignature] = useState('');
   const [versionForm, setVersionForm] = useState({ content: '', changeSummary: '' });
 
   const isOwner = useMemo(() => document?.ownerUsername === user?.username, [document, user]);
@@ -116,6 +117,27 @@ export default function DocumentDetailDrawer({ open, documentId, user, api, onCl
       onChanged();
     } catch (actionError) {
       showMessage(actionError.message || 'Restore failed', 'error');
+    }
+  }
+
+  async function handlePdfPreview() {
+    const previewWindow = window.open('', '_blank');
+    if (!previewWindow) {
+      showMessage('Allow pop-ups to open the PDF preview', 'warning');
+      return;
+    }
+    previewWindow.document.title = 'Preparing PDF preview';
+    try {
+      const pdf = await api.previewDocumentPdf(document.id);
+      const url = URL.createObjectURL(pdf);
+      const filename = `${document.title || 'document'}.pdf`.replace(/[\\/:*?"<>|]/g, '_');
+      previewWindow.document.open();
+      previewWindow.document.write(`<!doctype html><html><head><title>${filename}</title><style>html,body,embed{width:100%;height:100%;margin:0;border:0}body{overflow:hidden}</style></head><body><embed src="${url}#toolbar=0&navpanes=0" type="application/pdf" title="${filename}"><script>document.addEventListener('contextmenu', event => event.preventDefault());document.addEventListener('keydown', event => { if ((event.ctrlKey || event.metaKey) && ['s','p'].includes(event.key.toLowerCase())) event.preventDefault(); });</script></body></html>`);
+      previewWindow.document.close();
+      window.setTimeout(() => URL.revokeObjectURL(url), 60000);
+    } catch (previewError) {
+      previewWindow.close();
+      showMessage(previewError.message || 'Unable to render PDF preview', 'error');
     }
   }
 
@@ -212,7 +234,10 @@ export default function DocumentDetailDrawer({ open, documentId, user, api, onCl
                 <Stack spacing={3}>
                   {latestVersion ? (
                     <Box>
-                      <Typography variant="h6" gutterBottom>Latest content</Typography>
+                      <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1 }}>
+                        <Typography variant="h6">Latest content</Typography>
+                        <Button variant="outlined" size="small" onClick={handlePdfPreview}>Preview PDF</Button>
+                      </Stack>
                       <Box sx={{ p: 2, bgcolor: '#002733', color: '#ffffff', borderRadius: 1.5 }}>
                         <pre>{cleanContent(latestVersion.content)}</pre>
                       </Box>
@@ -276,16 +301,23 @@ export default function DocumentDetailDrawer({ open, documentId, user, api, onCl
                         multiline
                         minRows={2}
                       />
+                      <TextField
+                        required
+                        label="Digital signature"
+                        value={approvalSignature}
+                        onChange={(event) => setApprovalSignature(event.target.value)}
+                        helperText="Enter your name to sign the PDF approval record."
+                      />
                       <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
                         <Button
                           variant="contained"
                           color="success"
                           onClick={() => perform(
-                            () => api.reviewDocument(document.id, { approved: true, remarks: decisionRemarks }),
+                            () => api.reviewDocument(document.id, { approved: true, remarks: decisionRemarks, signature: approvalSignature }),
                             'Document approved'
                           )}
                         >
-                          Approve
+                          Sign & approve
                         </Button>
                         <Button
                           variant="contained"
@@ -377,7 +409,7 @@ export default function DocumentDetailDrawer({ open, documentId, user, api, onCl
                     <ListItem key={approval.id} alignItems="flex-start" sx={{ px: 0 }}>
                       <ListItemText
                         primary={`${approval.action} by ${approval.actorUsername}`}
-                        secondary={`${approval.remarks || 'No remarks'} · ${formatDate(approval.createdAt)}`}
+                        secondary={`${approval.remarks || 'No remarks'}${approval.signature ? ` · Signed as ${approval.signature}` : ''} · ${formatDate(approval.createdAt)}`}
                       />
                     </ListItem>
                   ))}
