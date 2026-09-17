@@ -122,17 +122,13 @@ public class DocumentService {
     @Transactional(readOnly = true)
     public List<DocumentResponse> listDocuments(String actorUsername, boolean includeDeleted) {
         AppUser actor = appUserService.getRequiredUser(actorUsername);
-        List<Document> documents = appUserService.canViewAllDocuments(actor)
-                ? (includeDeleted && appUserService.isAdmin(actor)
-                    ? documentRepository.findAll().stream()
-                    : documentRepository.findAllByDeletedFalseOrderByUpdatedAtDesc().stream())
-                    .sorted(Comparator.comparing(Document::getUpdatedAt).reversed())
-                    .toList()
-                : (includeDeleted
-                    ? documentRepository.findAllByOwnerUsernameOrderByUpdatedAtDesc(actorUsername)
-                    : documentRepository.findAllByOwnerUsernameAndDeletedFalseOrderByUpdatedAtDesc(actorUsername));
+        List<Document> documents = (includeDeleted && appUserService.isAdmin(actor)
+                ? documentRepository.findAll().stream()
+                : documentRepository.findAllByDeletedFalseOrderByUpdatedAtDesc().stream())
+                .sorted(Comparator.comparing(Document::getUpdatedAt).reversed())
+                .toList();
         return documents.stream()
-            .filter(document -> canAccessSecretDocument(document, actorUsername))
+                .filter(document -> canAccessDocument(document, actor))
                 .map(documentMapper::toSummary)
                 .toList();
     }
@@ -380,21 +376,15 @@ public class DocumentService {
         if (document.isDeleted() && includeDeleted && !appUserService.isAdmin(actor)) {
             throw new ForbiddenOperationException("Only admin users can access deleted documents");
         }
-        if (!canAccessSecretDocument(document, actorUsername)) {
+        if (!canAccessDocument(document, actor)) {
             throw new ResourceNotFoundException("Document not found: " + id);
-        }
-        if (!appUserService.canViewAllDocuments(actor) && !document.getOwnerUsername().equals(actorUsername)) {
-            throw new ForbiddenOperationException("You are not allowed to access this document");
         }
         return document;
     }
 
-    private boolean canAccessSecretDocument(Document document, String actorUsername) {
-        if (!"Secret".equalsIgnoreCase(document.getCategory())) {
-            return true;
-        }
-        return document.getOwnerUsername().equals(actorUsername)
-                || actorUsername.equals(document.getAssignedReviewer());
+    private boolean canAccessDocument(Document document, AppUser actor) {
+        return document.getOwnerUsername().equals(actor.getUsername())
+                || (appUserService.isReviewer(actor) && canActOnReview(document, actor));
     }
 
     private Document getRequiredDocument(Long id) {

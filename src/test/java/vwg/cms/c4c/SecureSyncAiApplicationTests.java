@@ -199,6 +199,24 @@ class SecureSyncAiApplicationTests {
     }
 
     @Test
+    void reviewerCannotSeeDocumentOutsideTheirApprovalAuthority() throws Exception {
+        MvcResult createResult = mockMvc.perform(post("/api/documents")
+                        .with(httpBasic("employee1", "Password1!"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"title\":\"Admin Review Only\",\"category\":\"Internal\",\"reviewerUsername\":\"admin1\",\"content\":\"Restricted workflow content.\"}"))
+                .andExpect(status().isOk())
+                .andReturn();
+        long documentId = objectMapper.readTree(createResult.getResponse().getContentAsString()).get("id").asLong();
+
+        mockMvc.perform(get("/api/documents/{id}", documentId)
+                        .with(httpBasic("pdhead1", "Password1!")))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(get("/api/documents/{id}", documentId)
+                        .with(httpBasic("admin1", "Password1!")))
+                .andExpect(status().isOk());
+    }
+
+    @Test
     void higherReviewerRoleCanApproveAConfidentialDocument() throws Exception {
         MvcResult createResult = mockMvc.perform(post("/api/documents")
                         .with(httpBasic("employee1", "Password1!"))

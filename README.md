@@ -401,7 +401,22 @@ Docker Compose exposes:
 - backend on `http://localhost:8080`
 - frontend on `http://localhost:5173`
 
-The backend waits for PostgreSQL to pass its healthcheck before starting. Stop containers without deleting database data with `docker compose down`; remove the persisted database volume only when you intentionally want a clean database: `docker compose down -v`.
+The backend waits for PostgreSQL to pass its healthcheck before starting. To run in the background, use `docker compose up --build -d`. After a code or Dockerfile change, rebuild and restart with `docker compose up --build`.
+
+Stop containers without deleting data:
+
+```powershell
+docker compose down
+```
+
+Reset the database completely, including uploaded documents, workflow history, notifications, and user records:
+
+```powershell
+docker compose down -v
+docker compose up --build
+```
+
+The next backend startup creates the database schema with Flyway and reseeds the six default users because the `users` table is empty. Any users added after startup must be recreated after a volume reset.
 
 ## Deployment notes
 
