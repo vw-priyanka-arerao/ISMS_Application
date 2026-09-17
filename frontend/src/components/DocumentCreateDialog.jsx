@@ -25,19 +25,17 @@ const initialState = {
   reviewerUsername: '',
   content: '',
   changeSummary: '',
-  ownerUsername: '',
   reviewCycleDays: 365,
   nextReviewAt: ''
 };
 
-export default function DocumentCreateDialog({ open, onClose, onCreate, user, reviewerOptions = [], ownerOptions = [] }) {
+export default function DocumentCreateDialog({ open, onClose, onCreate, reviewerOptions = [] }) {
   const [form, setForm] = useState(initialState);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [useFileUpload, setUseFileUpload] = useState(false);
   const [selectedFile, setSelectedFile] = useState(null);
 
-  const canAssignOwner = useMemo(() => user?.role === 'ADMIN', [user]);
   const selectedReviewer = useMemo(
     () => reviewerOptions.find((option) => option.email.toLowerCase() === form.reviewerUsername.trim().toLowerCase()),
     [form.reviewerUsername, reviewerOptions]
@@ -112,21 +110,6 @@ export default function DocumentCreateDialog({ open, onClose, onCreate, user, re
               <MenuItem key={option} value={option}>{option}</MenuItem>
             ))}
           </TextField>
-          {canAssignOwner ? (
-            <TextField
-              select
-              label="Owner username (optional)"
-              value={form.ownerUsername || ''}
-              onChange={(event) => updateField('ownerUsername', event.target.value)}
-            >
-              <MenuItem value="">Current user</MenuItem>
-              {ownerOptions.map((option) => (
-                <MenuItem key={option.username} value={option.username}>
-                  {option.displayName} ({option.role})
-                </MenuItem>
-              ))}
-            </TextField>
-          ) : null}
           <Autocomplete
             freeSolo
             options={matchingReviewerOptions}
@@ -181,7 +164,7 @@ export default function DocumentCreateDialog({ open, onClose, onCreate, user, re
                 />
               </Button>
               <Typography variant="body2" color="text.secondary">
-                {selectedFile ? `Selected: ${selectedFile.name}` : 'No file selected. PDF, DOCX, XLS, and XLSX files up to 1 MB are supported.'}
+                {selectedFile ? `Selected: ${selectedFile.name}` : 'No file selected. PDF, DOCX, XLS, and XLSX files up to 10 MB are supported.'}
               </Typography>
             </Stack>
           ) : (

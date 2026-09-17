@@ -76,8 +76,8 @@ public class DocumentController {
         if (file.isEmpty()) {
             throw new BadRequestException("Uploaded file must not be empty");
         }
-        if (file.getSize() > 1024 * 1024) {
-            throw new BadRequestException("Uploaded file exceeds the 1 MB MVP limit");
+        if (file.getSize() > 10L * 1024 * 1024) {
+            throw new BadRequestException("Uploaded file exceeds the 10 MB limit");
         }
         String filename = file.getOriginalFilename();
         String extension = filename == null || !filename.contains(".")

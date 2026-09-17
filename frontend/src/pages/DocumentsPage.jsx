@@ -26,7 +26,6 @@ function formatDate(value) {
 
 export default function DocumentsPage({ api, user, showMessage }) {
   const [documents, setDocuments] = useState([]);
-  const [users, setUsers] = useState([]);
   const [reviewers, setReviewers] = useState([]);
   const [error, setError] = useState('');
   const [openCreate, setOpenCreate] = useState(false);
@@ -47,12 +46,10 @@ export default function DocumentsPage({ api, user, showMessage }) {
 
   const loadUsers = useCallback(async () => {
     try {
-      const [allUsers, reviewerUsers, lists] = await Promise.all([
-        api.listUsers(false),
+      const [reviewerUsers, lists] = await Promise.all([
         api.listUsers(true),
         api.listDistributionLists()
       ]);
-      setUsers(allUsers);
       setReviewers([
         ...reviewerUsers,
         ...lists.map((list) => ({ ...list, role: 'DISTRIBUTION_LIST', displayName: list.name }))
@@ -74,7 +71,6 @@ export default function DocumentsPage({ api, user, showMessage }) {
       await api.uploadDocument({
         title: payload.title,
         category: payload.category,
-        ownerUsername: payload.ownerUsername,
         reviewerUsername: payload.reviewerUsername,
         changeSummary: payload.changeSummary,
         reviewCycleDays: normalizedReviewCycleDays,
@@ -85,7 +81,6 @@ export default function DocumentsPage({ api, user, showMessage }) {
       await api.createDocument({
         title: payload.title,
         category: payload.category,
-        ownerUsername: payload.ownerUsername,
         reviewerUsername: payload.reviewerUsername,
         content: payload.content,
         changeSummary: payload.changeSummary,
@@ -126,7 +121,6 @@ export default function DocumentsPage({ api, user, showMessage }) {
               <TableRow>
                 <TableCell>Title</TableCell>
                 <TableCell>Label</TableCell>
-                <TableCell>Owner</TableCell>
                 <TableCell>Status</TableCell>
                 <TableCell>Version</TableCell>
                 <TableCell>Reviewer</TableCell>
@@ -146,7 +140,6 @@ export default function DocumentsPage({ api, user, showMessage }) {
                     <Typography variant="body2" color="text.secondary">{document.documentKey}</Typography>
                   </TableCell>
                   <TableCell>{document.category}</TableCell>
-                  <TableCell>{document.ownerUsername}</TableCell>
                   <TableCell><StatusChip status={document.status} /></TableCell>
                   <TableCell>v{document.currentVersion}</TableCell>
                   <TableCell>
@@ -159,7 +152,7 @@ export default function DocumentsPage({ api, user, showMessage }) {
               ))}
               {!documents.length ? (
                 <TableRow>
-                  <TableCell colSpan={7}>
+                  <TableCell colSpan={6}>
                     <Typography sx={{ py: 3, textAlign: 'center' }} color="text.secondary">
                       No documents yet. Create the first ISMS document to begin the workflow.
                     </Typography>
@@ -175,9 +168,7 @@ export default function DocumentsPage({ api, user, showMessage }) {
         open={openCreate}
         onClose={() => setOpenCreate(false)}
         onCreate={handleCreate}
-        user={user}
         reviewerOptions={reviewers}
-        ownerOptions={users}
       />
 
       <DocumentDetailDrawer

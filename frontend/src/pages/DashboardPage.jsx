@@ -201,7 +201,7 @@ export default function DashboardPage({ api, user, showMessage }) {
                       <ListItem key={document.id} sx={{ px: 0 }}>
                         <ListItemText
                           primary={document.title}
-                          secondary={`Owner: ${document.ownerUsername} • Updated: ${formatDate(document.updatedAt)}`}
+                          secondary={`Updated: ${formatDate(document.updatedAt)}`}
                         />
                         <StatusChip status={document.status} />
                       </ListItem>
@@ -444,7 +444,7 @@ export default function DashboardPage({ api, user, showMessage }) {
                                       overflowWrap: 'anywhere'
                                     }}
                                   >
-                                    {`Owner: ${match.ownerUsername} • Score: ${match.relevanceScore} • Updated: ${formatDate(match.updatedAt)} • Next review: ${formatDate(match.nextReviewAt)}`}
+                                    {`Score: ${match.relevanceScore} • Updated: ${formatDate(match.updatedAt)} • Next review: ${formatDate(match.nextReviewAt)}`}
                                   </Typography>
                                   {match.snippet ? (
                                     <Typography

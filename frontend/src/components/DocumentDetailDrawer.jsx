@@ -180,7 +180,6 @@ export default function DocumentDetailDrawer({ open, documentId, user, api, onCl
             <>
               <Box sx={{ p: 2, bgcolor: 'background.paper', borderRadius: 3 }}>
                 <Stack spacing={1}>
-                  <Typography><strong>Owner:</strong> {document.ownerUsername}</Typography>
                   <Typography><strong>Created by:</strong> {document.createdBy || 'Unknown'}</Typography>
                   <Typography>
                     <strong>Reviewer:</strong>{' '}
