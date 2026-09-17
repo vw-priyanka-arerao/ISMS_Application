@@ -13,7 +13,6 @@ SecureSync AI is a runnable full-stack MVP for centralized ISMS document managem
 - Admin archive/restore for soft-deleted documents
 - Review-cycle and next-review metadata for expiry tracking
 - Floating `Ask AI` assistant launcher for role-aware document search
-- AI-generated document drafts routed through the normal review workflow
 - PDF previews with a recorded digital approval signature
 - Label-specific review controls for `Internal`, `Confidential`, and `Secret` documents
 - Swagger UI, PostgreSQL as the default database, and Docker Compose
@@ -343,7 +342,6 @@ curl -u admin1@securesync.local:Password1! -H 'Content-Type: application/json' \
 | `GET` | `/api/documents` | List documents, optionally including deleted items |
 | `GET` | `/api/documents/{id}` | Load a single document with its detail view data |
 | `POST` | `/api/documents` | Create a document from JSON content |
-| `POST` | `/api/documents/ai-drafts` | Create an AI-generated document draft |
 | `POST` | `/api/documents/upload` | Create a document from multipart text-file upload |
 | `POST` | `/api/documents/{id}/submit` | Submit a draft into review workflow |
 | `POST` | `/api/documents/{id}/start-review` | Start the reviewer workflow stage |
@@ -403,7 +401,22 @@ Docker Compose exposes:
 - backend on `http://localhost:8080`
 - frontend on `http://localhost:5173`
 
-The backend waits for PostgreSQL to pass its healthcheck before starting. Stop containers without deleting database data with `docker compose down`; remove the persisted database volume only when you intentionally want a clean database: `docker compose down -v`.
+The backend waits for PostgreSQL to pass its healthcheck before starting. To run in the background, use `docker compose up --build -d`. After a code or Dockerfile change, rebuild and restart with `docker compose up --build`.
+
+Stop containers without deleting data:
+
+```powershell
+docker compose down
+```
+
+Reset the database completely, including uploaded documents, workflow history, notifications, and user records:
+
+```powershell
+docker compose down -v
+docker compose up --build
+```
+
+The next backend startup creates the database schema with Flyway and reseeds the six default users because the `users` table is empty. Any users added after startup must be recreated after a volume reset.
 
 ## Deployment notes
 

@@ -199,6 +199,24 @@ class SecureSyncAiApplicationTests {
     }
 
     @Test
+    void reviewerCannotSeeDocumentOutsideTheirApprovalAuthority() throws Exception {
+        MvcResult createResult = mockMvc.perform(post("/api/documents")
+                        .with(httpBasic("employee1", "Password1!"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"title\":\"Admin Review Only\",\"category\":\"Internal\",\"reviewerUsername\":\"admin1\",\"content\":\"Restricted workflow content.\"}"))
+                .andExpect(status().isOk())
+                .andReturn();
+        long documentId = objectMapper.readTree(createResult.getResponse().getContentAsString()).get("id").asLong();
+
+        mockMvc.perform(get("/api/documents/{id}", documentId)
+                        .with(httpBasic("pdhead1", "Password1!")))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(get("/api/documents/{id}", documentId)
+                        .with(httpBasic("admin1", "Password1!")))
+                .andExpect(status().isOk());
+    }
+
+    @Test
     void higherReviewerRoleCanApproveAConfidentialDocument() throws Exception {
         MvcResult createResult = mockMvc.perform(post("/api/documents")
                         .with(httpBasic("employee1", "Password1!"))
@@ -220,39 +238,6 @@ class SecureSyncAiApplicationTests {
                         .content("{\"approved\":true,\"signature\":\"Admin One\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("APPROVED"));
-    }
-
-    @Test
-    void aiDraftUsesTheNormalDocumentWorkflowAndApprovalRequiresSignature() throws Exception {
-        MvcResult createResult = mockMvc.perform(post("/api/documents/ai-drafts")
-                        .with(httpBasic("employee1", "Password1!"))
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {
-                                  "title": "AI Access Procedure",
-                                  "category": "Procedure",
-                                  "reviewerUsername": "sdm1",
-                                  "prompt": "Describe privileged access approval controls."
-                                }
-                                """))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.status").value("DRAFT"))
-                .andExpect(jsonPath("$.assignedReviewer").value("sdm1"))
-                .andExpect(jsonPath("$.versions[0].content").value(org.hamcrest.Matchers.containsString("privileged access")))
-                .andReturn();
-        long documentId = objectMapper.readTree(createResult.getResponse().getContentAsString()).get("id").asLong();
-
-        mockMvc.perform(post("/api/documents/{id}/submit", documentId)
-                        .with(httpBasic("employee1", "Password1!"))
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"reviewerUsername\":\"sdm1\"}"))
-                .andExpect(status().isOk());
-
-        mockMvc.perform(post("/api/documents/{id}/review", documentId)
-                        .with(httpBasic("sdm1", "Password1!"))
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"approved\":true}"))
-                .andExpect(status().isBadRequest());
     }
 
     @Test

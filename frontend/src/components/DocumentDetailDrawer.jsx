@@ -198,7 +198,7 @@ export default function DocumentDetailDrawer({ open, documentId, user, api, onCl
               {analysis ? (
                 <Alert severity={analysis.validationScore >= 75 ? 'success' : 'warning'}>
                   <strong>AI validation score:</strong> {analysis.validationScore.toFixed(1)} / 100<br />
-                  <strong>Confidence:</strong> {(analysis.confidenceScore || 0).toFixed(1)}% ({analysis.model || 'heuristic'})<br />
+                  <strong>Confidence:</strong> {(analysis.confidenceScore || 0).toFixed(1)}%<br />
                   <strong>Summary:</strong> {analysis.generatedSummary}
                   {analysis.detectedKeywords?.length ? (
                     <><br /><strong>Detected keywords:</strong> {analysis.detectedKeywords.join(', ')}</>

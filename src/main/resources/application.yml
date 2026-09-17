@@ -43,4 +43,13 @@ app:
     review-reminder-hours: 24
     reminder-resend-hours: 24
     reminder-scan-ms: 900000
+  ai:
+    llm:
+      enabled: ${LLM_ENABLED:false}
+      token-url: ${LLM_TOKEN_URL:https://idp.cloud.vwgroup.com/auth/realms/kums-mfa/protocol/openid-connect/token}
+      client-id: ${LLM_CLIENT_ID:}
+      client-secret: ${LLM_CLIENT_SECRET:}
+      base-url: ${LLM_BASE_URL:https://llmapi.ai.vwgroup.com}
+      virtual-key: ${LLM_VIRTUAL_KEY:}
+      model: ${LLM_MODEL:gpt-5-mini}
 

@@ -3,6 +3,12 @@ target/
 !**/src/main/**/target/
 !**/src/test/**/target/
 .kotlin
+.env
+.env.*
+!.env.example
+node_modules/
+frontend/dist/
+data/
 
 ### IntelliJ IDEA ###
 .idea/modules.xml
