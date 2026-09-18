@@ -22,7 +22,7 @@ SecureSync AI is a runnable full-stack MVP for centralized ISMS document managem
 | Area | Included in MVP | Notes |
 | --- | --- | --- |
 | Authentication | Yes | Email and password login for registered users |
-| Role-based access | Yes | `EMPLOYEE`, `SDM`, `PD_HEAD`, `SUB_ADMIN`, `ADMIN`, `AUDITOR` |
+| Role-based access | Yes | `EMPLOYEE`, `SDM`, `PD_HEAD`, `SUB_ADMIN`, `ADMIN` |
 | Document creation | Yes | Manual content, supported file upload, and AI draft generation |
 | Workflow approvals | Yes | Submit, start review, digitally sign and approve, or reject |
 | Versioning | Yes | Change summary and checksum tracking |
@@ -96,7 +96,6 @@ SecureSync AI is a runnable full-stack MVP for centralized ISMS document managem
   - `PD_HEAD`
   - `SUB_ADMIN`
   - `ADMIN`
-  - `AUDITOR`
 
 ### Dashboard
 
@@ -193,7 +192,6 @@ All demo users use the same password:
 | PD Head | `pdhead1@securesync.local` |
 | Sub Admin | `subadmin1@securesync.local` |
 | Admin | `admin1@securesync.local` |
-| Auditor | `auditor1@securesync.local` |
 
 ## Tech stack
 
